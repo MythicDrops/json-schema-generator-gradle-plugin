@@ -1,0 +1,44 @@
+#
+# CI build that also make releases from the main dev branch.
+#
+# - skipping CI: add [skip ci] to the commit message
+#
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  gradle_wrapper_validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3.0.0
+        with:
+          fetch-depth: "0" # https://github.com/shipkit/shipkit-auto-version#fetch-depth-on-ci
+      - name: Gradle wrapper validation
+        uses: gradle/wrapper-validation-action@v1.0.4
+
+  windows_build:
+    if: "! contains(toJSON(github.event.commits.*.message), '[skip ci]')"
+    runs-on: windows-latest
+    needs: gradle_wrapper_validation
+    steps:
+      - uses: actions/checkout@v3.0.0
+        with:
+          fetch-depth: "0" # https://github.com/shipkit/shipkit-auto-version#fetch-depth-on-ci
+      - name: Run build
+        run: .\gradlew.bat build --continue
+
+  build:
+    runs-on: ubuntu-latest
+    # We run Windows build first because we will be publishing artifacts from the Ubuntu build (simplifies workflow)
+    needs: [windows_build, gradle_wrapper_validation]
+    steps:
+      - uses: actions/checkout@v3.0.0
+        with:
+          fetch-depth: "0" # https://github.com/shipkit/shipkit-auto-version#fetch-depth-on-ci
+      - name: Make gradlew Executable
+        run: chmod +x ./gradlew
+      - name: Run build
+        run: ./gradlew build --continue
